@@ -1620,8 +1620,8 @@ class RunJob(BaseTask):
                 env['ANSIBLE_NET_AUTH_PASS'] = network_cred.get_input('authorize_password', default='')
 
         path_vars = (
-            ('ANSIBLE_COLLECTIONS_PATHS', 'collections_paths', 'requirements_collections', '~/.ansible/collections:/usr/share/ansible/collections'),
-            ('ANSIBLE_ROLES_PATH', 'roles_path', 'requirements_roles', '~/.ansible/roles:/usr/share/ansible/roles:/etc/ansible/roles'))
+            ('ANSIBLE_COLLECTIONS_PATHS', 'collections_paths', 'project/collections', '~/.ansible/collections:/usr/share/ansible/collections'),
+            ('ANSIBLE_ROLES_PATH', 'roles_path', 'project/roles', '~/.ansible/roles:/usr/share/ansible/roles:/etc/ansible/roles'))
 
         config_values = read_ansible_config(job.project.get_project_path(), list(map(lambda x: x[1], path_vars)))
 
@@ -1814,17 +1814,17 @@ class RunJob(BaseTask):
         else:
             sync_needs = all_sync_needs
         # Galaxy requirements are not supported for manual projects
-        if not sync_needs and job.project.scm_type:
-            # see if we need a sync because of presence of roles
-            galaxy_req_path = os.path.join(project_path, 'roles', 'requirements.yml')
-            if os.path.exists(galaxy_req_path):
-                logger.debug('Running project sync for {} because of galaxy role requirements.'.format(job.log_format))
-                sync_needs.append('install_roles')
-
-            galaxy_collections_req_path = os.path.join(project_path, 'collections', 'requirements.yml')
-            if os.path.exists(galaxy_collections_req_path):
-                logger.debug('Running project sync for {} because of galaxy collections requirements.'.format(job.log_format))
-                sync_needs.append('install_collections')
+        # if not sync_needs and job.project.scm_type:
+        #     # see if we need a sync because of presence of roles
+        #     galaxy_req_path = os.path.join(project_path, 'roles', 'requirements.yml')
+        #     if os.path.exists(galaxy_req_path):
+        #         logger.debug('Running project sync for {} because of galaxy role requirements.'.format(job.log_format))
+        #         sync_needs.append('install_roles')
+        #
+        #     galaxy_collections_req_path = os.path.join(project_path, 'collections', 'requirements.yml')
+        #     if os.path.exists(galaxy_collections_req_path):
+        #         logger.debug('Running project sync for {} because of galaxy collections requirements.'.format(job.log_format))
+        #         sync_needs.append('install_collections')
 
         if sync_needs:
             pu_ig = job.instance_group
@@ -1835,7 +1835,7 @@ class RunJob(BaseTask):
 
             sync_metafields = dict(
                 launch_type="sync",
-                job_type='run',
+                job_type='check',
                 job_tags=','.join(sync_needs),
                 status='running',
                 instance_group = pu_ig,
@@ -2097,9 +2097,9 @@ class RunProjectUpdate(BaseTask):
             'roles_enabled': settings.AWX_ROLES_ENABLED,
             'collections_enabled': settings.AWX_COLLECTIONS_ENABLED,
         })
-        if project_update.job_type != 'check' and self.job_private_data_dir:
-            extra_vars['collections_destination'] = os.path.join(self.job_private_data_dir, 'requirements_collections')
-            extra_vars['roles_destination'] = os.path.join(self.job_private_data_dir, 'requirements_roles')
+        if project_update.job_type == 'check':
+            extra_vars['collections_destination'] = '.'
+            extra_vars['roles_destination'] = '.'
         # apply custom refspec from user for PR refs and the like
         if project_update.scm_refspec:
             extra_vars['scm_refspec'] = project_update.scm_refspec
@@ -2267,6 +2267,11 @@ class RunProjectUpdate(BaseTask):
                 git.Repo.clone_from(subrepo_uri, subrepo_destination_folder, depth=1, single_branch=True)
             # force option is necessary because remote refs are not counted, although no information is lost
             git_repo.delete_head(tmp_branch_name, force=True)
+            # force copy collections/roles folders content
+            if os.path.exists(project_path + '/collections/'):
+                copy_tree(project_path + '/collections/', destination_folder + '/collections/')
+            if os.path.exists(project_path + '/roles/'):
+                copy_tree(project_path + '/roles/', destination_folder + '/roles/')
         else:
             copy_tree(project_path, destination_folder)
 
