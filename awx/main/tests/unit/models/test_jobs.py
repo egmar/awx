@@ -34,6 +34,13 @@ def job(mocker, hosts, inventory):
     return j
 
 
+@pytest.fixture
+def job_with_extravars(mocker, hosts, inventory):
+    j = Job(inventory=inventory, id=2, extra_vars='{"fact_cache_filter":{"a":"a"}}')
+    j._get_inventory_hosts = mocker.Mock(return_value=hosts)
+    return j
+
+
 def test_start_job_fact_cache(hosts, job, inventory, tmpdir):
     fact_cache = os.path.join(tmpdir, 'facts')
     modified_times = {}
@@ -58,6 +65,22 @@ def test_fact_cache_with_invalid_path_traversal(job, inventory, tmpdir, mocker):
     assert os.listdir(os.path.join(fact_cache, '..')) == ['facts']
 
 
+def test_fact_cache_with_filter(hosts, job_with_extravars, inventory, tmpdir):
+    fact_cache = os.path.join(tmpdir, 'facts')
+    modified_times = {}
+    job_with_extravars.start_job_fact_cache(fact_cache, modified_times, 0)
+
+    for host in hosts:
+        filepath = os.path.join(fact_cache, host.name)
+        assert os.path.exists(filepath)
+        with open(filepath, 'r') as f:
+            fact = json.loads(f.read())
+            assert len(fact) == 1
+            assert "a" in fact
+            assert fact.get("a") == 1
+        assert filepath in modified_times
+
+
 def test_finish_job_fact_cache_with_existing_data(job, hosts, inventory, mocker, tmpdir):
     fact_cache = os.path.join(tmpdir, 'facts')
     modified_times = {}
@@ -66,7 +89,7 @@ def test_finish_job_fact_cache_with_existing_data(job, hosts, inventory, mocker,
     for h in hosts:
         h.save = mocker.Mock()
 
-    ansible_facts_new = {"foo": "bar", "insights": {"system_id": "updated_by_scan"}}
+    ansible_facts_new = {"a": 1, "b": 2, "foo": "bar", "insights": {"system_id": "updated_by_scan"}}
     filepath = os.path.join(fact_cache, hosts[1].name)
     with open(filepath, 'w') as f:
         f.write(json.dumps(ansible_facts_new))

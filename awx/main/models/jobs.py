@@ -7,6 +7,7 @@ import datetime
 import logging
 import os
 import time
+import jmespath
 import json
 from urllib.parse import urljoin
 
@@ -843,9 +844,13 @@ class Job(UnifiedJob, JobOptions, SurveyJobMixin, JobNotificationMixin, TaskMana
                 system_tracking_logger.error('facts for host {} could not be cached'.format(smart_str(host.name)))
                 continue
             try:
+                if "fact_cache_filter" in self.extra_vars_dict:
+                    fact_cache_filter = jmespath.compile(json.dumps(self.extra_vars_dict.get('fact_cache_filter')))
+                else:
+                    fact_cache_filter = jmespath.compile('@')
                 with codecs.open(filepath, 'w', encoding='utf-8') as f:
                     os.chmod(f.name, 0o600)
-                    json.dump(host.ansible_facts, f)
+                    json.dump(fact_cache_filter.search(host.ansible_facts), f)
             except IOError:
                 system_tracking_logger.error('facts for host {} could not be cached'.format(smart_str(host.name)))
                 continue
@@ -868,7 +873,7 @@ class Job(UnifiedJob, JobOptions, SurveyJobMixin, JobNotificationMixin, TaskMana
                             ansible_facts = json.load(f)
                         except ValueError:
                             continue
-                        host.ansible_facts = ansible_facts
+                        host.ansible_facts.update(ansible_facts)
                         host.ansible_facts_modified = now()
                         ansible_local = ansible_facts.get('ansible_local', {}).get('insights', {})
                         ansible_facts = ansible_facts.get('insights', {})
