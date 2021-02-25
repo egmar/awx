@@ -41,7 +41,7 @@ azure-mgmt-loganalytics==0.2.0
 azure-mgmt-automation==0.1.1
 azure-mgmt-iothub==0.7.0
 # AWS
-boto==2.47.0    # last which does not break ec2 scripts
+boto==2.49.0    # last which does not break ec2 scripts
 boto3==1.9.223
 jinja2==2.10.1  # required for native jinja2 types for inventory compat mode
 # netconf for network modules
